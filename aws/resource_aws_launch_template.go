@@ -59,11 +59,18 @@ func resourceAwsLaunchTemplate() *schema.Resource {
 			"default_version": {
 				Type:     schema.TypeInt,
 				Computed: true,
+				ConflictsWith:[]string{"set_version_to_latest"},
 			},
 
 			"latest_version": {
 				Type:     schema.TypeInt,
 				Computed: true,
+
+			},
+			"set_version_to_latest": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				ConflictsWith:[]string{"default_version"},
 			},
 
 			"block_device_mappings": {
@@ -585,6 +592,8 @@ func resourceAwsLaunchTemplateCreate(d *schema.ResourceData, meta interface{}) e
 		ltName = resource.UniqueId()
 	}
 
+
+
 	launchTemplateData, err := buildLaunchTemplateData(d)
 	if err != nil {
 		return err
@@ -611,6 +620,14 @@ func resourceAwsLaunchTemplateCreate(d *schema.ResourceData, meta interface{}) e
 
 	log.Printf("[DEBUG] Launch Template created: %q (version %d)",
 		*launchTemplate.LaunchTemplateId, *launchTemplate.LatestVersionNumber)
+
+	if v, ok := d.GetOk("default_version");ok && v.(int64) > 0 {
+		launchTemplate.SetDefaultVersionNumber(v.(int64))
+	}
+
+	if v, ok := d.GetOk("set_version_to_latest");ok && v.(bool) == true {
+		launchTemplate.SetDefaultVersionNumber(*launchTemplate.LatestVersionNumber)
+	}
 
 	return resourceAwsLaunchTemplateRead(d, meta)
 }
@@ -1156,6 +1173,7 @@ func buildLaunchTemplateData(d *schema.ResourceData) (*ec2.RequestLaunchTemplate
 	opts := &ec2.RequestLaunchTemplateData{
 		UserData: aws.String(d.Get("user_data").(string)),
 	}
+
 
 	if v, ok := d.GetOk("image_id"); ok {
 		opts.ImageId = aws.String(v.(string))
